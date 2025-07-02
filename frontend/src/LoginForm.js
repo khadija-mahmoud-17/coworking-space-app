@@ -31,6 +31,10 @@ function LoginForm() {
       <input name="email" type="email" placeholder="Email" onChange={handleChange} required />
       <input name="password" type="password" placeholder="Password" onChange={handleChange} required />
       <button type="submit">Login</button>
+      <p>
+        Don't have an account? <a href="/register">Register here</a>
+      </p>
+
     </form>
   );
 }
