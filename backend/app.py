@@ -5,7 +5,7 @@ from flask_cors import CORS
 import os
 import pandas as pd
 from flask_mail import Mail, Message
-
+from datetime import datetime
 
 # -------------------------
 # Flask Setup
@@ -41,6 +41,34 @@ class User(db.Model):
     matriculation = db.Column(db.String(100), nullable=True)  # Only for students
     email = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
+
+from datetime import datetime, timedelta
+
+class Seat(db.Model):
+    __tablename__ = 'seats'
+
+    id = db.Column(db.Integer, primary_key=True)
+    label = db.Column(db.String(20), nullable=False)       # e.g. "A1", "B2"
+    area = db.Column(db.String(50), nullable=False)         # e.g. "Main room", "Bar"
+    is_booked = db.Column(db.Boolean, default=False)        # True if the seat is booked
+
+    def __repr__(self):
+        return f"<Seat {self.label} in {self.area}>"
+
+
+class Booking(db.Model):
+    __tablename__ = 'bookings'
+
+    id = db.Column(db.Integer, primary_key=True)
+    seat_id = db.Column(db.Integer, db.ForeignKey('seats.id'), nullable=False)
+    user_email = db.Column(db.String(100), nullable=False)
+    start_time = db.Column(db.DateTime, default=datetime.utcnow)
+    end_time = db.Column(db.DateTime, nullable=False)
+
+    seat = db.relationship('Seat', backref='bookings')
+
+    def __repr__(self):
+        return f"<Booking for seat {self.seat_id} by {self.user_email}>"
 
 
 with app.app_context():
@@ -183,7 +211,67 @@ def contact():
         print(f"Error sending email: {e}")
         return jsonify({'message': 'Failed to send message'}), 500
 
+from flask import request
+from sqlalchemy import and_
 
+@app.route('/api/available-seats', methods=['GET'])
+def get_available_seats():
+    start = request.args.get("start")
+    end = request.args.get("end")
+
+    if not start or not end:
+        return jsonify({"error": "Missing start or end time"}), 400
+
+    start_dt = datetime.fromisoformat(start)
+    end_dt = datetime.fromisoformat(end)
+
+    # Get booked seat IDs with overlapping bookings
+    overlapping = Booking.query.filter(
+        and_(
+            Booking.start_time < end_dt,
+            Booking.end_time > start_dt
+        )
+    ).with_entities(Booking.seat_id).distinct()
+
+    booked_ids = [b.seat_id for b in overlapping]
+    available = Seat.query.filter(~Seat.id.in_(booked_ids)).all()
+
+    return jsonify([
+        {"id": seat.id, "label": seat.label, "area": seat.area}
+        for seat in available
+    ])
+
+@app.route("/api/book-seat", methods=["POST"])
+def book_seat():
+    data = request.json
+    seat_id = data.get("seat_id")
+    start_time = data.get("start_time")
+    end_time = data.get("end_time")
+    user_id = data.get("user_id")
+
+    if not all([seat_id, start_time, end_time, user_id]):
+        return jsonify({"message": "Missing data"}), 400
+
+    try:
+        start = datetime.fromisoformat(start_time)
+        end = datetime.fromisoformat(end_time)
+    except ValueError:
+        return jsonify({"message": "Invalid datetime format"}), 400
+
+    overlap = Booking.query.filter(
+        Booking.seat_id == seat_id,
+        Booking.start_time < end,
+        Booking.end_time > start
+    ).first()
+
+    if overlap:
+        return jsonify({"message": "Seat is already booked for that time"}), 409
+
+    booking = Booking(seat_id=seat_id, user_id=user_id, start_time=start, end_time=end)
+    db.session.add(booking)
+    db.session.commit()
+
+    return jsonify({"message": "Seat booked successfully"}), 200
 # -------------------------
 # Run Server
 # -------------------------

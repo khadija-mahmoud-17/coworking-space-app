@@ -1,32 +1,70 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+/**
+=========================================================
+* Material Kit 2 React - v2.1.0
+=========================================================
 
-import Home from './pages/Home';
-import About from './pages/About';
-import Locations from './pages/Locations';
-import LoginForm from './components/LoginForm';
-import RegisterForm from './components/RegisterForm';
-import Footer from './components/Footer';
-import Contact from './pages/Contact';
+* Product Page: https://www.creative-tim.com/product/material-kit-react
+* Copyright 2023 Creative Tim (https://www.creative-tim.com)
 
-function App() {
+Coded by www.creative-tim.com
+
+ =========================================================
+
+* The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+*/
+
+import { useEffect } from "react";
+
+// react-router components
+import { Switch, Route, Redirect, useLocation } from "react-router-dom";
+
+// @mui material components
+import { ThemeProvider } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
+
+// Material Kit 2 React themes
+import theme from "assets/theme";
+
+// Material Kit 2 React routes
+import routes from "routes";
+
+export default function App() {
+  const { pathname } = useLocation();
+
+  // Scroll to top when changing routes
+  useEffect(() => {
+    document.documentElement.scrollTop = 0;
+    document.scrollingElement.scrollTop = 0;
+  }, [pathname]);
+
+  // Convert route definitions to <Route /> components
+  const getRoutes = (allRoutes) =>
+    allRoutes.map((route) => {
+      if (route.collapse) {
+        return getRoutes(route.collapse); // handle nested routes
+      }
+
+      if (route.route && route.component) {
+        return (
+          <Route
+            exact
+            path={route.route}
+            component={route.component}
+            key={route.key || route.name || route.route}
+          />
+        );
+      }
+
+      return null;
+    });
+
   return (
-    <Router>
-      <div className="app-container" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-        <div style={{ flex: 1 }}>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={<LoginForm />} />
-            <Route path="/register" element={<RegisterForm />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/locations" element={<Locations />} />
-            <Route path="/contact" element={<Contact />} />
-          </Routes>p
-        </div>
-        <Footer />
-      </div>
-    </Router>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Switch>
+        {getRoutes(routes)}
+        <Redirect to="/" />
+      </Switch>
+    </ThemeProvider>
   );
 }
-
-export default App;
