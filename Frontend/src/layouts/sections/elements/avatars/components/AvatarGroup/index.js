@@ -22,11 +22,6 @@ import MuiAvatarGroup from "@mui/material/AvatarGroup";
 import MKBox from "components/MKBox";
 import MKAvatar from "components/MKAvatar";
 
-// Images
-import team1 from "assets/images/team-1.jpg";
-import team2 from "assets/images/team-2.jpg";
-import team3 from "assets/images/team-3.jpg";
-import team4 from "assets/images/team-4.jpg";
 
 function AvatarGroup() {
   return (

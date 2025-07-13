@@ -86,7 +86,7 @@ function DefaultNavbarDropdown({
       )}
 
       {/* Conditionally show logout if user is logged in and under an "Account"-like dropdown */}
-      {user && name.toLowerCase().includes("account") && (
+      {user && typeof name === "string" && name.toLowerCase().includes("account") && (
         <MKBox px={2} py={1}>
           <MKTypography
             component={Link}

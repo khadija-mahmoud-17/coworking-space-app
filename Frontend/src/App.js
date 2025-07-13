@@ -8,8 +8,7 @@
 
 Coded by www.creative-tim.com
 
- =========================================================
-
+=========================================================
 * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 */
 
@@ -25,8 +24,9 @@ import CssBaseline from "@mui/material/CssBaseline";
 // Material Kit 2 React themes
 import theme from "assets/theme";
 
-// Material Kit 2 React routes
+// App routes and shared footer
 import routes from "routes";
+import Footer from "components/Footer"; // ✅ import Footer here
 
 export default function App() {
   const { pathname } = useLocation();
@@ -61,10 +61,13 @@ export default function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Switch>
-        {getRoutes(routes)}
-        <Redirect to="/" />
-      </Switch>
+      <>
+        <Switch>
+          {getRoutes(routes)}
+          <Redirect to="/" />
+        </Switch>
+        <Footer /> {/* ✅ Now always visible */}
+      </>
     </ThemeProvider>
   );
 }

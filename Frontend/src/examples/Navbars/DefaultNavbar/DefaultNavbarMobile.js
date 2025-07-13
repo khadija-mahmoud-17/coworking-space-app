@@ -37,8 +37,14 @@ function DefaultNavbarMobile({ routes, open }) {
 
   const handleSetCollapse = (name) => (collapse === name ? setCollapse(false) : setCollapse(name));
 
-  const renderNavbarItems = routes.map(
-    ({ name, icon, collapse: routeCollapses, href, route, collapse: navCollapse }) => (
+  const user = JSON.parse(localStorage.getItem("user"));
+  const renderNavbarItems = routes
+    .filter((route) => {
+      if (route.hideWhenLoggedIn && user) return false;
+      if (route.name === "Book a Seat" && !user) return false;
+      return true;
+    })
+    .map(({ name, icon, collapse: routeCollapses, href, route, collapse: navCollapse }) => (
       <DefaultNavbarDropdown
         key={name}
         name={name}
@@ -145,8 +151,7 @@ function DefaultNavbarMobile({ routes, open }) {
             ))}
         </MKBox>
       </DefaultNavbarDropdown>
-    )
-  );
+    ));
 
   return (
     <Collapse in={Boolean(open)} timeout="auto" unmountOnExit>

@@ -1,28 +1,12 @@
-/**
-=========================================================
-* Material Kit 2 React - v2.1.0
-=========================================================
-
-* Product Page: https://www.creative-tim.com/product/material-kit-react
-* Copyright 2023 Creative Tim (https://www.creative-tim.com)
-
-Coded by www.creative-tim.com
-=========================================================
-*/
-
+// src/routes.js
 import React from "react";
 import Icon from "@mui/material/Icon";
-
-// Pages
-import HomePage from "pages/HomePage";
-import LoginPage from "pages/LoginPage";
-import RegisterPage from "pages/RegisterPage";
-import BookPage from "pages/BookPage";
-import AboutPage from "pages/About";
-import TermsPage from "pages/TermsPage";
-import LogoutButton from "pages/LogoutButton";
-import ForgotPasswordPage from "pages/ForgotPasswordPage";
-import ResetPasswordPage from "pages/ResetPasswordPage";
+import LoginPage from "pages/LoginPage.js";
+import RegisterPage from "./pages/RegisterPage";
+import HomePage from "./pages/HomePage";
+import LogoutPage from "./pages/Logout";
+import TermsPage from "./pages/TermsPage";
+import ProfilePage from "pages/ProfilePage";
 
 const routes = [
   {
@@ -30,6 +14,21 @@ const routes = [
     icon: <Icon>home</Icon>,
     route: "/",
     component: HomePage,
+  },
+  {
+    name: "Book a Seat",
+    icon: <Icon>event_seat</Icon>,
+    route: "/#book",
+  },
+  {
+    name: "Subscriptions",
+    icon: <Icon>gavel</Icon>,
+    route: "/#subscriptions",
+  },
+  {
+    name: "About Us",
+    icon: <Icon>info</Icon>,
+    route: "/#about",
   },
   {
     name: "Login",
@@ -44,43 +43,21 @@ const routes = [
     component: RegisterPage,
   },
   {
-    name: "Book a Seat",
-    icon: <Icon>event_seat</Icon>,
-    route: "/book-seat",
-    component: BookPage,
+    name: "Logout",
+    icon: <Icon>logout</Icon>,
+    route: "/logout",
+    component: LogoutPage,
   },
   {
-    name: "About Us",
-    icon: <Icon>info</Icon>,
-    route: "/about",
-    component: AboutPage,
-  },
-  {
-    name: "Terms & Conditions",
-    icon: <Icon>gavel</Icon>,
+    name: "Terms",
     route: "/terms",
     component: TermsPage,
   },
   {
-    name: "Logout",
-    route: "/logout",
-    component: LogoutButton,
-  },
-
-  // 🔒 Hidden route (not in navbar) for password reset
-  {
-    route: "/forgot-password",
-    component: ForgotPasswordPage,
-  },
-  {
-    name: "Reset Password",
-    route: "/reset-password/:token",
-    component: ResetPasswordPage,
-  },
-  {
-    name: "Reset Password",
-    route: "/reset-password/:token",
-    component: ResetPasswordPage,
+    name: "Profile",
+    icon: <Icon>person</Icon>,
+    route: "/profile",
+    component: ProfilePage,
   },
 ];
 

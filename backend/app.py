@@ -1,127 +1,180 @@
 from flask import Flask, redirect, request, jsonify, send_from_directory, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin 
 import os
 import pandas as pd
 from flask_mail import Mail, Message
-from datetime import datetime
+from datetime import datetime, timedelta
 from itsdangerous import URLSafeTimedSerializer
 from random import randint
+
 # -------------------------
 # Flask Setup
 # -------------------------
 app = Flask(__name__, static_folder="../frontend/build", static_url_path="/")
-app.config['SECRET_KEY'] = 'your-super-secret-key'  # ← Replace this with a real secret key in production
-CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
+app.config['SECRET_KEY'] = 'your-super-secret-key'
+CORS(app, supports_credentials=True)
 bcrypt = Bcrypt(app)
 s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
-
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///coworking.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Email config (Gmail example)
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'dija.aa1714@gmail.com'
-app.config['MAIL_PASSWORD'] = 'pwjk ndvw iavl xstg'  # use app password for Gmail
-app.config['MAIL_DEFAULT_SENDER'] = 'dija.aa1714@gmail.com'
+app.config['MAIL_USERNAME'] = '1he.1nnovation.hub@gmail.com'
+app.config['MAIL_PASSWORD'] = 'mksf wvcs lqcs hiaw'
+app.config['MAIL_DEFAULT_SENDER'] = '1he.1nnovation.hub@gmail.com'
 
 mail = Mail(app)
-FRONTEND_BASE_URL = "http://localhost:3000"  # or your deployed frontend URL
+FRONTEND_BASE_URL = "http://localhost:3000"
 
 db = SQLAlchemy(app)
 
 # -------------------------
-# Database Model
+# Database Models
 # -------------------------
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     role = db.Column(db.String(20), nullable=False)
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
-    matriculation = db.Column(db.String(100), nullable=True)  # Only for students
+    matriculation = db.Column(db.String(100), nullable=True)
     email = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     confirmed = db.Column(db.Boolean, default=False)
-
-from datetime import datetime, timedelta
 
 class Seat(db.Model):
     __tablename__ = 'seats'
 
     id = db.Column(db.Integer, primary_key=True)
-    label = db.Column(db.String(20), nullable=False)       # e.g. "A1", "B2"
-    area = db.Column(db.String(50), nullable=False)         # e.g. "Main room", "Bar"
-    is_booked = db.Column(db.Boolean, default=False)        # True if the seat is booked
+    label = db.Column(db.String(20), nullable=False)
+    area = db.Column(db.String(50), nullable=False)
+    is_booked = db.Column(db.Boolean, default=False)
 
     def __repr__(self):
         return f"<Seat {self.label} in {self.area}>"
-
 
 class Booking(db.Model):
     __tablename__ = 'bookings'
 
     id = db.Column(db.Integer, primary_key=True)
     seat_id = db.Column(db.Integer, db.ForeignKey('seats.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     user_email = db.Column(db.String(100), nullable=False)
     start_time = db.Column(db.DateTime, default=datetime.utcnow)
     end_time = db.Column(db.DateTime, nullable=False)
 
     seat = db.relationship('Seat', backref='bookings')
+    user = db.relationship('User', backref='bookings')
 
-    def __repr__(self):
-        return f"<Booking for seat {self.seat_id} by {self.user_email}>"
-
-
+# -------------------------
+# Initialize DB and Add Seats S1-S6
+# -------------------------
 with app.app_context():
     db.create_all()
 
+    existing_labels = {seat.label for seat in Seat.query.all()}
+    for i in range(1, 7):
+        label = f"S{i}"
+        if label not in existing_labels:
+            new_seat = Seat(label=label, area="Main Room", is_booked=False)
+            db.session.add(new_seat)
+    db.session.commit()
 
 # -------------------------
-# CSV Sensor Data
+# CSV Sensor Simulation
 # -------------------------
-
-# Automatically get the absolute path to the CSV file
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_PATH = os.path.join(BASE_DIR, "Updated_IR_Sensor_Events.csv")
 
-def calculate_current_occupancy(file_path: str, initial_count: int = 10):
-    df = pd.read_csv(file_path)
-    df = df.sort_values(by='timestamp')  # Ensure data is sorted by timestamp
-    people_inside = initial_count
+import random
 
-    for _, row in df.iterrows():
-        if row['entrance_sensor'] == 1 and row['exit_sensor'] == 0:
+def calculate_current_occupancy(file_path: str, initial_count: int = 10):
+    try:
+        df = pd.read_csv(file_path)
+    except Exception as e:
+        print(f"Error reading CSV: {e}")
+        return initial_count
+
+    if 'timestamp' not in df or 'entrance_sensor' not in df or 'exit_sensor' not in df:
+        print("Missing required columns")
+        return initial_count
+
+    now = datetime.now()
+    random_event = random.choice(["enter", "exit"])
+
+    if random_event == "enter":
+        new_rows = pd.DataFrame([
+            {"timestamp": now, "entrance_sensor": 1, "exit_sensor": 0},
+            {"timestamp": now + pd.Timedelta(seconds=1), "entrance_sensor": 0, "exit_sensor": 1}
+        ])
+    else:
+        new_rows = pd.DataFrame([
+            {"timestamp": now, "entrance_sensor": 0, "exit_sensor": 1},
+            {"timestamp": now + pd.Timedelta(seconds=1), "entrance_sensor": 1, "exit_sensor": 0}
+        ])
+
+    df = pd.concat([df, new_rows], ignore_index=True)
+    df = df.tail(200)
+    df.to_csv(file_path, index=False)
+
+    df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+    df = df.sort_values(by='timestamp').reset_index(drop=True)
+
+    people_inside = initial_count
+    i = 0
+
+    while i < len(df) - 1:
+        current = df.iloc[i]
+        next_row = df.iloc[i + 1]
+        time_diff = (next_row['timestamp'] - current['timestamp']).total_seconds()
+
+        if time_diff > 3:
+            i += 1
+            continue
+
+        if current['entrance_sensor'] == 1 and next_row['exit_sensor'] == 1:
             people_inside += 1
-        elif row['entrance_sensor'] == 0 and row['exit_sensor'] == 1:
+            i += 2
+        elif current['exit_sensor'] == 1 and next_row['entrance_sensor'] == 1:
             people_inside = max(0, people_inside - 1)
+            i += 2
+        else:
+            i += 1
+
     return people_inside
 
 def get_crowd_status(people_inside: int):
-    if people_inside < 10:
+    if people_inside < 12:
         return {"status": "Not Crowded", "color": "green"}
-    elif 10 <= people_inside <= 20:
+    elif 12 <= people_inside <= 25:
         return {"status": "Crowded", "color": "yellow"}
     else:
         return {"status": "Very Crowded", "color": "red"}
 
 @app.route('/api/crowd-status', methods=['GET'])
+@cross_origin(origins="http://localhost:3000", supports_credentials=True)
 def crowd_status():
-    people_inside = calculate_current_occupancy(CSV_PATH)
-    status_info = get_crowd_status(people_inside)
+    try:
+        people_inside = calculate_current_occupancy(CSV_PATH)
+        people_inside = min(people_inside, 35)
 
-    response = {
-        "people_inside": people_inside,
-        "status": status_info["status"],
-        "color": status_info["color"]
-    }
+        status_info = get_crowd_status(people_inside)
 
-    return jsonify(response)
+        return jsonify({
+            "people_inside": people_inside,
+            "status": status_info["status"],
+            "color": status_info["color"]
+        })
+    except Exception as e:
+        print("Error in /api/crowd-status:", str(e))
+        return jsonify({"error": "Internal Server Error"}), 500
+
 # -------------------------
-# Routes
+# Auth + Booking Routes
 # -------------------------
 @app.route('/register', methods=['POST'])
 def register():
@@ -136,7 +189,6 @@ def register():
     last_name = data.get('last_name', '')
     matriculation = data.get('matriculation', '')
 
-    # Validate required fields
     if role == 'Student':
         if not all([first_name, last_name, matriculation, email, password]):
             return jsonify({"message": "Missing required student fields"}), 400
@@ -146,10 +198,8 @@ def register():
     else:
         return jsonify({"message": "Invalid role provided"}), 400
 
-    # Hash the password
     hashed = bcrypt.generate_password_hash(password).decode('utf-8')
 
-    # Create user and set confirmed = False
     new_user = User(
         role=role,
         email=email,
@@ -157,17 +207,15 @@ def register():
         first_name=first_name,
         last_name=last_name,
         matriculation=matriculation,
-        confirmed=False  # Make sure your User model has this field
+        confirmed=False
     )
 
     db.session.add(new_user)
     db.session.commit()
 
-    # Generate email confirmation token
     token = s.dumps(email, salt='email-confirm')
     confirm_url = url_for('confirm_email', token=token, _external=True)
-    
-    # Send confirmation email
+
     msg = Message('Confirm your email', recipients=[email])
     msg.body = f"Hi {first_name},\n\nPlease confirm your email by clicking the link: {confirm_url}"
     mail.send(msg)
@@ -189,7 +237,6 @@ def confirm_email(token):
         user.confirmed = True
         db.session.commit()
 
-    # ✅ Redirect to login page on successful confirmation
     return redirect("http://localhost:3000/login")
 
 @app.route('/login', methods=['POST'])
@@ -219,18 +266,15 @@ def login():
     if not user.confirmed:
         return jsonify({"message": "Please confirm your email first."}), 403
 
-    # 2FA: Generate and store code
     verification_code = str(randint(100000, 999999))
     session['2fa_code'] = verification_code
     session['pending_user_id'] = user.id
 
-    # Send email
     msg = Message("Your Login Verification Code", sender="noreply@coworking.com", recipients=[user.email])
     msg.body = f"Hi {user.first_name},\n\nYour verification code is: {verification_code}"
     mail.send(msg)
 
     return jsonify({"message": "Verification code sent to your email", "require_2fa": True}), 200
-
 
 @app.route('/verify-2fa', methods=['POST'])
 def verify_2fa():
@@ -246,7 +290,6 @@ def verify_2fa():
 
     user = User.query.get(user_id)
 
-    # Clear session
     session.pop('2fa_code', None)
     session.pop('pending_user_id', None)
 
@@ -306,6 +349,7 @@ def reset_password(token):
     return jsonify({"message": "User not found"}), 404
 
 @app.route('/contact', methods=['POST'])
+@cross_origin(origins="http://localhost:3000", supports_credentials=True)
 def contact():
     data = request.json
     if not data:
@@ -313,9 +357,10 @@ def contact():
 
     msg = Message(
         subject="Coworking Space Inquiry",
-        recipients=['dija.aa1714@gmail.com'],
+        recipients=['1he.1nnovation.hub@gmail.com'],
         body=f"From: {data['first_name']} {data['last_name']} <{data['email']}>\n\nMessage:\n{data['message']}"
     )
+    print("Contact form received:", data)
     try:
         mail.send(msg)
         return jsonify({'message': 'Message sent successfully!'}), 200
@@ -324,6 +369,8 @@ def contact():
         return jsonify({'message': 'Failed to send message'}), 500
 
 from flask import request
+from sqlalchemy import and_
+
 from sqlalchemy import and_
 
 @app.route('/api/available-seats', methods=['GET'])
@@ -337,7 +384,6 @@ def get_available_seats():
     start_dt = datetime.fromisoformat(start)
     end_dt = datetime.fromisoformat(end)
 
-    # Get booked seat IDs with overlapping bookings
     overlapping = Booking.query.filter(
         and_(
             Booking.start_time < end_dt,
@@ -364,26 +410,158 @@ def book_seat():
     if not all([seat_id, start_time, end_time, user_id]):
         return jsonify({"message": "Missing data"}), 400
 
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"message": "Invalid user"}), 403
+
     try:
         start = datetime.fromisoformat(start_time)
         end = datetime.fromisoformat(end_time)
     except ValueError:
         return jsonify({"message": "Invalid datetime format"}), 400
 
-    overlap = Booking.query.filter(
+    if end <= start:
+        return jsonify({"message": "End time must be after start time"}), 400
+
+    if end.date() != start.date():
+        return jsonify({"message": "Booking must be within the same day"}), 400
+
+    MAX_DURATION = timedelta(hours=4)
+    if end - start > MAX_DURATION:
+        end = start + MAX_DURATION
+
+    # Check if the seat is already booked in that time slot
+    seat_conflict = Booking.query.filter(
         Booking.seat_id == seat_id,
         Booking.start_time < end,
         Booking.end_time > start
     ).first()
 
-    if overlap:
+    if seat_conflict:
         return jsonify({"message": "Seat is already booked for that time"}), 409
 
-    booking = Booking(seat_id=seat_id, user_id=user_id, start_time=start, end_time=end)
+    # ❗ Check if the user already has an active booking
+    active_booking = Booking.query.filter(
+        Booking.user_id == user_id,
+        Booking.end_time > datetime.utcnow()
+    ).first()
+
+    if active_booking:
+        return jsonify({
+            "message": "You already have an active booking. You can only book again after it ends."
+        }), 403
+
+    booking = Booking(
+        seat_id=seat_id,
+        user_id=user_id,
+        user_email=user.email,
+        start_time=start,
+        end_time=end
+    )
+
     db.session.add(booking)
     db.session.commit()
 
     return jsonify({"message": "Seat booked successfully"}), 200
+
+@app.route("/api/my-bookings/<int:user_id>", methods=["GET"])
+def get_my_bookings(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    bookings = Booking.query.filter_by(user_id=user_id).all()
+    return jsonify([
+        {
+            "seat": b.seat.label,
+            "area": b.seat.area,
+            "start_time": b.start_time.isoformat(),
+            "end_time": b.end_time.isoformat(),
+        }
+        for b in bookings
+    ])
+@app.route("/api/profile/<int:user_id>", methods=["GET"])
+def get_profile(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    # Check for active booking
+    active_booking = Booking.query.filter(
+        Booking.user_id == user_id,
+        Booking.end_time > datetime.utcnow()
+    ).first()
+
+    return jsonify({
+        "id": user.id,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "email": user.email,
+        "role": user.role,
+        "matriculation": user.matriculation,  # include this if your model has it
+        "active_booking": {
+            "id": active_booking.id,  # <-- added booking ID
+            "seat": active_booking.seat.label,
+            "start_time": active_booking.start_time.isoformat(),
+            "end_time": active_booking.end_time.isoformat()
+        } if active_booking else None
+    })
+
+from flask import request
+
+@app.route("/api/bookings/<int:booking_id>", methods=["PUT"])
+def update_booking(booking_id):
+    data = request.get_json()
+    booking = Booking.query.get(booking_id)
+
+    if not booking:
+        return jsonify({"message": "Booking not found"}), 404
+
+    # Optional: verify that the user making the request is authorized to update this booking
+
+    # Update booking fields
+    new_seat_label = data.get("seat")
+    new_start_time = data.get("start_time")
+    new_end_time = data.get("end_time")
+
+    if new_seat_label:
+        seat = Seat.query.filter_by(label=new_seat_label).first()
+        if not seat:
+            return jsonify({"message": "Seat not found"}), 400
+        booking.seat_id = seat.id
+
+    if new_start_time:
+        booking.start_time = datetime.fromisoformat(new_start_time)
+
+    if new_end_time:
+        booking.end_time = datetime.fromisoformat(new_end_time)
+
+    db.session.commit()
+    return jsonify({"message": "Booking updated successfully"})
+
+@app.route("/api/bookings/<int:booking_id>", methods=["DELETE"])
+def cancel_booking(booking_id):
+    booking = Booking.query.get(booking_id)
+    if not booking:
+        return jsonify({"message": "Booking not found"}), 404
+
+    db.session.delete(booking)
+    db.session.commit()
+    return jsonify({"message": "Booking cancelled successfully"})
+
+@app.route("/api/users/<int:user_id>", methods=["DELETE"])
+def delete_user(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    # Also delete associated bookings
+    Booking.query.filter_by(user_id=user_id).delete()
+
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({"message": "User deleted successfully"}), 200
+
 # -------------------------
 # Run Server
 # -------------------------

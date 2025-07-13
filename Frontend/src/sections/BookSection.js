@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { makeStyles } from "@material-ui/core/styles";
 import MKBox from "components/MKBox";
 import MKTypography from "components/MKTypography";
-import MKProgress from "components/MKProgress";
 import MKButton from "components/MKButton";
-import MKDatePicker from "components/MKDatePicker";
+import Flatpickr from "react-flatpickr";
+import Snackbar from "@mui/material/Snackbar";
+import Alert from "@mui/material/Alert";
+import "flatpickr/dist/themes/material_blue.css";
 
 const useStyles = makeStyles(() => ({
   container: {
@@ -37,7 +39,7 @@ const useStyles = makeStyles(() => ({
   },
   image: {
     width: "100%",
-    maxWidth: "400px",
+    maxWidth: "600px",
     height: "auto",
     borderRadius: "8px",
     boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
@@ -47,33 +49,19 @@ const useStyles = makeStyles(() => ({
 
 export default function BookSection() {
   const classes = useStyles();
-  const [capacity] = useState(50);
-  const [occupancy, setOccupancy] = useState(0);
   const [start, setStart] = useState(null);
   const [end, setEnd] = useState(null);
   const [availableSeats, setAvailableSeats] = useState([]);
   const [selectedSeat, setSelectedSeat] = useState(null);
-  const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const res = await fetch("http://localhost:5000/api/crowd-status");
-        const data = await res.json();
-        setOccupancy(data.people_inside);
-      } catch (err) {
-        console.error("Error fetching crowd status", err);
-      }
-    };
-
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const usage = capacity ? Math.min((occupancy / capacity) * 100, 100) : 0;
+  const [snackbar, setSnackbar] = useState({ open: false, success: true, text: "" });
+  const user = JSON.parse(localStorage.getItem("user"));
 
   const fetchAvailableSeats = async () => {
+    if (!user) {
+      alert("Please log in to check seat availability.");
+      setAvailableSeats([]);
+      return;
+    }
     if (!start || !end) return alert("Select both start and end time");
     try {
       const res = await fetch(
@@ -82,15 +70,20 @@ export default function BookSection() {
       const data = await res.json();
       setAvailableSeats(data);
       setSelectedSeat(null);
-      setMessage("");
     } catch (err) {
       console.error("Error fetching seats", err);
     }
   };
 
   const bookSelectedSeat = async () => {
-    const user = JSON.parse(localStorage.getItem("user"));
-    if (!user) return alert("You must be logged in!");
+    if (!user) {
+      alert("Please log in to book a seat.");
+      return;
+    }
+    if (!selectedSeat || !start || !end) {
+      alert("Please select a seat, start time, and end time.");
+      return;
+    }
 
     try {
       const res = await fetch("http://localhost:5000/api/book-seat", {
@@ -106,31 +99,25 @@ export default function BookSection() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage("✅ Seat booked successfully!");
+        setSnackbar({ open: true, success: true, text: "✅ Seat booked successfully!" });
         setSelectedSeat(null);
         fetchAvailableSeats();
       } else {
-        setMessage(`❌ ${data.message}`);
+        setSnackbar({ open: true, success: false, text: `❌ ${data.message}` });
       }
     } catch (err) {
       console.error("Booking error", err);
-      setMessage("❌ Booking failed");
+      setSnackbar({ open: true, success: false, text: "❌ Booking failed" });
     }
   };
 
   return (
     <section id="book">
       <MKBox className={classes.container}>
-        {/* TOP IMAGES */}
         <div className={classes.imageRow}>
           <img
-            src={`${process.env.PUBLIC_URL}/images/meetingroom.png`}
-            alt="Main Room"
-            className={classes.image}
-          />
-          <img
             src={`${process.env.PUBLIC_URL}/images/seats.png`}
-            alt="Meeting Room"
+            alt="Seat Plan"
             className={classes.image}
           />
         </div>
@@ -140,35 +127,36 @@ export default function BookSection() {
         </MKTypography>
 
         <MKTypography variant="body1" mb={1}>
-          Capacity: {capacity}
+          Start Time
         </MKTypography>
-        <MKTypography variant="body1" mb={2}>
-          Current Occupancy: {occupancy}
+        <Flatpickr
+          data-enable-time
+          value={start}
+          onChange={([date]) => setStart(date)}
+          className={classes.input}
+          options={{ dateFormat: "Y-m-d H:i" }}
+        />
+
+        <MKTypography variant="body1" mt={3} mb={1}>
+          End Time
         </MKTypography>
-        <MKProgress color="info" value={usage} label />
-
-        <hr style={{ margin: "30px 0" }} />
-
-        <MKBox mb={2}>
-          <MKDatePicker
-            value={start}
-            onChange={([date]) => setStart(date)}
-            options={{ enableTime: true, dateFormat: "Y-m-d H:i" }}
-            input={{ label: "Start Time", variant: "standard", fullWidth: true }}
-          />
-        </MKBox>
-        <MKBox mb={2}>
-          <MKDatePicker
-            value={end}
-            onChange={([date]) => setEnd(date)}
-            options={{ enableTime: true, dateFormat: "Y-m-d H:i" }}
-            input={{ label: "End Time", variant: "standard", fullWidth: true }}
-          />
-        </MKBox>
+        <Flatpickr
+          data-enable-time
+          value={end}
+          onChange={([date]) => setEnd(date)}
+          className={classes.input}
+          options={{ dateFormat: "Y-m-d H:i" }}
+        />
 
         <MKButton color="info" onClick={fetchAvailableSeats} className={classes.input}>
           Check Available Seats
         </MKButton>
+
+        {!user && (
+          <MKTypography color="warning" mt={2}>
+            Please log in to interact with seats.
+          </MKTypography>
+        )}
 
         {availableSeats.length > 0 && (
           <>
@@ -183,7 +171,13 @@ export default function BookSection() {
                   className={
                     selectedSeat?.id === seat.id ? classes.selectedSeat : classes.seatButton
                   }
-                  onClick={() => setSelectedSeat(seat)}
+                  onClick={() => {
+                    if (!user) {
+                      alert("Please log in to select a seat.");
+                      return;
+                    }
+                    setSelectedSeat(seat);
+                  }}
                 >
                   {seat.label} ({seat.area})
                 </MKButton>
@@ -192,7 +186,7 @@ export default function BookSection() {
           </>
         )}
 
-        {selectedSeat && (
+        {selectedSeat && start && end && (
           <>
             <MKTypography mt={3} mb={1}>
               Selected: {selectedSeat.label}
@@ -203,11 +197,15 @@ export default function BookSection() {
           </>
         )}
 
-        {message && (
-          <MKTypography mt={2} color="info">
-            {message}
-          </MKTypography>
-        )}
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={4000}
+          onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+        >
+          <Alert severity={snackbar.success ? "success" : "error"} sx={{ width: "100%" }}>
+            {snackbar.text}
+          </Alert>
+        </Snackbar>
       </MKBox>
     </section>
   );

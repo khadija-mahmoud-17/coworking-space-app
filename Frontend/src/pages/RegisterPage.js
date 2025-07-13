@@ -63,7 +63,8 @@ export default function RegisterPage() {
     if (!formValues.last_name) newErrors.last_name = "Last name is required";
     if (!formValues.email) newErrors.email = "Email is required";
     if (!formValues.password) newErrors.password = "Password is required";
-    if (formValues.password !== formValues.confirmPassword) newErrors.confirmPassword = "Passwords do not match";
+    if (formValues.password !== formValues.confirmPassword)
+      newErrors.confirmPassword = "Passwords do not match";
     if (formValues.role === "Student" && !formValues.matriculation)
       newErrors.matriculation = "Matriculation number is required";
 
@@ -212,7 +213,7 @@ export default function RegisterPage() {
                 >
                   <Icon>{showPassword ? "visibility_off" : "visibility"}</Icon>
                 </InputAdornment>
-              )
+              ),
             }}
           />
           <div className={classes.strengthText}>
@@ -239,7 +240,7 @@ export default function RegisterPage() {
                 >
                   <Icon>{showConfirm ? "visibility_off" : "visibility"}</Icon>
                 </InputAdornment>
-              )
+              ),
             }}
           />
 
