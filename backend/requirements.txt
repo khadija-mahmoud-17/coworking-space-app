@@ -1,0 +1,8 @@
+Flask
+flask_sqlalchemy
+flask_bcrypt
+flask_cors
+flask_mail
+itsdangerous
+pandas
+python-dotenv
