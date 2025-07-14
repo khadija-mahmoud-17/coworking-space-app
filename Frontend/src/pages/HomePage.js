@@ -50,7 +50,18 @@ export default function HomePage() {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const res = await fetch("http://localhost:5000/api/crowd-status");
+        const res = await fetch("/api/crowd-status", {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+          credentials: "include",
+        });
+
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+
         const data = await res.json();
         setOccupancy(data.people_inside);
         setCrowdStatus(data.status);
@@ -60,9 +71,10 @@ export default function HomePage() {
       }
     };
 
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 5000);
-    return () => clearInterval(interval);
+    fetchStatus(); // initial fetch
+    const interval = setInterval(fetchStatus, 10000); // repeat every 10s
+
+    return () => clearInterval(interval); // cleanup when component unmounts
   }, []);
 
   useEffect(() => {

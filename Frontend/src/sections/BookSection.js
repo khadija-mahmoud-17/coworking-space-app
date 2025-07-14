@@ -65,7 +65,9 @@ export default function BookSection() {
     if (!start || !end) return alert("Select both start and end time");
     try {
       const res = await fetch(
-        `http://localhost:5000/api/available-seats?start=${start.toISOString()}&end=${end.toISOString()}`
+        `${
+          process.env.REACT_APP_API_BASE_URL
+        }/api/available-seats?start=${start.toISOString()}&end=${end.toISOString()}`
       );
       const data = await res.json();
       setAvailableSeats(data);
@@ -86,7 +88,7 @@ export default function BookSection() {
     }
 
     try {
-      const res = await fetch("http://localhost:5000/api/book-seat", {
+      const res = await fetch("/api/book-seat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

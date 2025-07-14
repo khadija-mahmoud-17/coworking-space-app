@@ -23,7 +23,7 @@ export default function AboutSection() {
     const last_name = nameParts.slice(1).join(" ") || "";
 
     try {
-      const res = await fetch("http://localhost:5000/contact", {
+      const res = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/contact`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

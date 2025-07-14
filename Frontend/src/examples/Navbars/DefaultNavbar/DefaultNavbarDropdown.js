@@ -12,6 +12,10 @@ import Icon from "@mui/material/Icon";
 import MKBox from "components/MKBox";
 import MKTypography from "components/MKTypography";
 
+// Font Awesome
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faUser } from "@fortawesome/free-solid-svg-icons";
+
 function DefaultNavbarDropdown({
   name,
   icon,
@@ -57,7 +61,7 @@ function DefaultNavbarDropdown({
           color="inherit"
           sx={{ alignSelf: "center", "& *": { verticalAlign: "middle" } }}
         >
-          {icon}
+          {icon || <FontAwesomeIcon icon={faUser} />}
         </MKTypography>
 
         <MKTypography
@@ -70,7 +74,6 @@ function DefaultNavbarDropdown({
           {name}
         </MKTypography>
 
-        {/* Arrow icon for collapsible dropdown */}
         {collapse && (
           <MKTypography variant="body2" color={light ? "white" : "dark"} ml="auto">
             <Icon sx={{ fontWeight: "normal", verticalAlign: "middle" }}>keyboard_arrow_down</Icon>
@@ -78,14 +81,12 @@ function DefaultNavbarDropdown({
         )}
       </MKBox>
 
-      {/* Render dropdown children */}
       {children && (
         <Collapse in={Boolean(collapseStatus)} timeout={400} unmountOnExit>
           {children}
         </Collapse>
       )}
 
-      {/* Conditionally show logout if user is logged in and under an "Account"-like dropdown */}
       {user && typeof name === "string" && name.toLowerCase().includes("account") && (
         <MKBox px={2} py={1}>
           <MKTypography
@@ -111,12 +112,13 @@ DefaultNavbarDropdown.defaultProps = {
   light: false,
   href: "",
   route: "",
+  icon: null, // fallback handled inside component
 };
 
 // Prop types
 DefaultNavbarDropdown.propTypes = {
   name: PropTypes.string.isRequired,
-  icon: PropTypes.node.isRequired,
+  icon: PropTypes.node,
   children: PropTypes.node,
   collapseStatus: PropTypes.bool,
   light: PropTypes.bool,

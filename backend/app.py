@@ -1,36 +1,64 @@
 from flask import Flask, redirect, request, jsonify, send_from_directory, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
-from flask_cors import CORS, cross_origin 
+from flask_cors import CORS
 import os
 import pandas as pd
 from flask_mail import Mail, Message
 from datetime import datetime, timedelta
 from itsdangerous import URLSafeTimedSerializer
 from random import randint
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables
+# -------------------------
+env_path = Path(__file__).resolve().parent / '.env'
+load_dotenv(dotenv_path=env_path)
+load_dotenv(dotenv_path=env_path)
+print("SECRET_KEY:", os.getenv("SECRET_KEY"))
+print("FRONTEND_BASE_URL:", os.getenv("FRONTEND_BASE_URL"))
 
 # -------------------------
 # Flask Setup
 # -------------------------
 app = Flask(__name__, static_folder="../frontend/build", static_url_path="/")
-app.config['SECRET_KEY'] = 'your-super-secret-key'
-CORS(app, supports_credentials=True)
+CORS(app, resources={
+    r"/*": {
+        "origins": [
+            "http://localhost:3000",
+            "http://localhost:5000",
+            "https://opulent-fortnight-pj9vxqgwpp55crv9v-3000.app.github.dev",
+            "https://opulent-fortnight-pj9vxqgwpp55crv9v-5000.app.github.dev"
+        ],
+        "supports_credentials": True
+    }
+})
+# ------
+# Prevent trailing slash redirects that cause 302 (and break CORS)
+app.url_map.strict_slashes = False
+
+# Load frontend origin from .env, fallback to Codespaces URL
+FRONTEND_BASE_URL = os.getenv(
+    'FRONTEND_BASE_URL',
+    'https://opulent-fortnight-pj9vxqgwpp55crv9v-3000.app.github.dev'
+)
+
+# 🔐 App Configuration
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLALCHEMY_DATABASE_URI')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER')
+app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'True') == 'True'
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER')
+
+# 🔧 Init libraries
 bcrypt = Bcrypt(app)
 s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
-
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///coworking.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = '1he.1nnovation.hub@gmail.com'
-app.config['MAIL_PASSWORD'] = 'mksf wvcs lqcs hiaw'
-app.config['MAIL_DEFAULT_SENDER'] = '1he.1nnovation.hub@gmail.com'
-
 mail = Mail(app)
-FRONTEND_BASE_URL = "http://localhost:3000"
-
 db = SQLAlchemy(app)
 
 # -------------------------
@@ -151,12 +179,21 @@ def get_crowd_status(people_inside: int):
     if people_inside < 12:
         return {"status": "Not Crowded", "color": "green"}
     elif 12 <= people_inside <= 25:
-        return {"status": "Crowded", "color": "yellow"}
+        return {"status": "Crowded", "color": "warning"}
     else:
         return {"status": "Very Crowded", "color": "red"}
+@app.before_request
+def handle_options_requests():
+    if request.method == 'OPTIONS':
+        response = app.make_response('')
+        response.status_code = 200
+        response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
 
 @app.route('/api/crowd-status', methods=['GET'])
-@cross_origin(origins="http://localhost:3000", supports_credentials=True)
 def crowd_status():
     try:
         people_inside = calculate_current_occupancy(CSV_PATH)
@@ -176,8 +213,12 @@ def crowd_status():
 # -------------------------
 # Auth + Booking Routes
 # -------------------------
-@app.route('/register', methods=['POST'])
+@app.route('/register', methods=['POST', 'OPTIONS'])
 def register():
+    if request.method == 'OPTIONS':
+        # Preflight request – reply with OK
+        return '', 200
+
     data = request.json
     if not data:
         return jsonify({"message": "No input provided"}), 400
@@ -349,7 +390,6 @@ def reset_password(token):
     return jsonify({"message": "User not found"}), 404
 
 @app.route('/contact', methods=['POST'])
-@cross_origin(origins="http://localhost:3000", supports_credentials=True)
 def contact():
     data = request.json
     if not data:
@@ -561,9 +601,28 @@ def delete_user(user_id):
     db.session.delete(user)
     db.session.commit()
     return jsonify({"message": "User deleted successfully"}), 200
+@app.route('/api/test-cors', methods=['GET'])
+def test_cors():
+    return jsonify({"message": "CORS is working!"})
+@app.after_request
+def after_request(response):
+    origin = request.headers.get('Origin')
+    if origin and origin in [
+        "http://localhost:3000",
+        "http://localhost:5000",
+        "https://opulent-fortnight-pj9vxqgwpp55crv9v-3000.app.github.dev",
+        "https://opulent-fortnight-pj9vxqgwpp55crv9v-5000.app.github.dev"
+    ]:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
+    return response
 
 # -------------------------
 # Run Server
 # -------------------------
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
+
+
